@@ -1,4 +1,3 @@
-from rapidfuzz import process, fuzz
 import asyncio
 import re
 import ast
@@ -2751,33 +2750,11 @@ async def auto_filter(client, msg, spoll=False):
             files, offset, total_results = await get_search_results(message.chat.id ,search, offset=0, filter=True)
             settings = await get_settings(message.chat.id)
             if not files:
-                # Advanced Fuzzy Search
-                all_files, _, _ = await get_search_results(message.chat.id, search.split()[0], max_results=100)
-                
-                if not all_files:
-                    await m.edit(f"❌ No results found for `{search}`")
-                    return
-
-                titles = [file.file_name for file in all_files]
-
-                results = process.extract(
-                    search,
-                    titles,
-                    scorer=fuzz.WRatio,
-                    limit=7
-                )
-
-                strong_matches = [r[0] for r in results if r[1] > 60]
-
-                if strong_matches:
-                    suggestion_text = "\n".join([f"▫️ {title}" for title in strong_matches])
-                    await m.edit(
-                        f"❌ No exact results for `{search}`\n\n"
-                        f"🔎 Did you mean:\n{suggestion_text}"
-                    )
-                else:
-                    await m.edit(f"❌ No results found for `{search}`")
-                return
+                #await m.delete()
+                if settings["spell_check"]:
+                    ai_sts = await m.edit('ᴘʟᴇᴀꜱᴇ ᴡᴀɪᴛ, ʟᴜᴄʏ ɪꜱ ᴄʜᴇᴄᴋɪɴɢ ʏᴏᴜʀ ꜱᴘᴇʟʟɪɴɢ...')
+                    is_misspelled = await ai_spell_check(chat_id = message.chat.id,wrong_name=search)
+                    if is_misspelled:
                         await ai_sts.edit(f'<b>✅ʟᴜᴄʏ sᴜɢɢᴇsᴛᴇᴅ <code> {is_misspelled}</code> \nsᴏ ɪᴍ sᴇᴀʀᴄʜɪɴɢ ғᴏᴛ <code>{is_misspelled}</code></b>')
                         await asyncio.sleep(2)
                         message.text = is_misspelled

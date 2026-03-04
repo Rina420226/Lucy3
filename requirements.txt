@@ -46,7 +46,7 @@ yt-dlp
 ytthumb
 
 # Instaloader & Similarity Matching
-fuzzywuzzy
+rapidfuzz==3.9.1
 instaloader==4.9.5
 python-Levenshtein
 

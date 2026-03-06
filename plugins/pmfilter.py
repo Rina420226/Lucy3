@@ -2961,7 +2961,7 @@ async def ai_spell_check(chat_id, wrong_name):
     if not movie_list:
         return
     for _ in range(5):
-        closest_match = process.extractOne(wrong_name, movie_list)
+        closest_match = process.extractOne(wrong_name, movie_list, scorer=fuzz.token_set_ratio)
         if not closest_match or closest_match[1] <= 80:
             return 
         movie = closest_match[0]

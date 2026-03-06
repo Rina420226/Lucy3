@@ -18,7 +18,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQ
 from pyrogram import Client, filters, enums
 from pyrogram.errors import FloodWait, UserIsBlocked, MessageNotModified, PeerIdInvalid
 from utils import *
-from fuzzywuzzy import process
+from rapidfuzz import process, fuzz
 from database.users_chats_db import db
 from database.config_db import mdb
 from database.ia_filterdb import Media, Media2, get_file_details, get_search_results, get_bad_files

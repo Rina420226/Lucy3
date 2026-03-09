@@ -3432,3 +3432,19 @@ async def global_filters(client, message, text=False):
                 break
     else:
         return False
+
+def fuzzy_search(query, movie_list):
+    results = process.extract(
+        query,
+        movie_list,
+        scorer=fuzz.token_sort_ratio,
+        limit=5
+    )
+
+    matches = []
+
+    for movie, score, _ in results:
+        if score > 60:
+            matches.append(movie)
+
+    return matches

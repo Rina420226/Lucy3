@@ -18,7 +18,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQ
 from pyrogram import Client, filters, enums
 from pyrogram.errors import FloodWait, UserIsBlocked, MessageNotModified, PeerIdInvalid
 from utils import *
-from rapidfuzz import process, fuzz
+from fuzzywuzzy import process
 from database.users_chats_db import db
 from database.config_db import mdb
 from database.ia_filterdb import Media, Media2, get_file_details, get_search_results, get_bad_files
@@ -98,37 +98,9 @@ async def give_filter(client, message):
                     await auto_filter(client, message) 
     else:
         search = message.text
-
-temp_files, temp_offset, total_results = await get_search_results(
-    chat_id=message.chat.id,
-    query=search.lower(),
-    offset=0,
-    filter=True
-)
-
-# Agar exact result nahi mila to fuzzy search
-if total_results == 0:
-
-    all_files, _, _ = await get_search_results(
-        chat_id=message.chat.id,
-        query=search.lower(),
-        offset=0,
-        filter=False
-    )
-
-    names = [file.file_name for file in all_files]
-
-    matches = process.extract(
-        search,
-        names,
-        scorer=fuzz.token_sort_ratio,
-        limit=10
-    )
-
-    temp_files = [all_files[names.index(m[0])] for m in matches if m[1] > 60]
-
-    if not temp_files:
-        return
+        temp_files, temp_offset, total_results = await get_search_results(chat_id=message.chat.id, query=search.lower(), offset=0, filter=True)
+        if total_results == 0:
+            return
         else:
             return await message.reply_text(f"<b>Hᴇʏ {message.from_user.mention},\n\nʏᴏᴜʀ ʀᴇǫᴜᴇꜱᴛ ɪꜱ ᴀʟʀᴇᴀᴅʏ ᴀᴠᴀɪʟᴀʙʟᴇ ✅\n\n📂 ꜰɪʟᴇꜱ ꜰᴏᴜɴᴅ : {str(total_results)}\n ꜱᴇᴀʀᴄʜ :</b> <code>{search}</code>\n\n<b>‼️ ᴛʜɪs ɪs ᴀ <u>sᴜᴘᴘᴏʀᴛ ɢʀᴏᴜᴘ</u> sᴏ ᴛʜᴀᴛ ʏᴏᴜ ᴄᴀɴ'ᴛ ɢᴇᴛ ғɪʟᴇs ғʀᴏᴍ ʜᴇʀᴇ...\n\n📝 ꜱᴇᴀʀᴄʜ ʜᴇʀᴇ : 👇</b>",   
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("ᴊᴏɪɴ ᴀɴᴅ ꜱᴇᴀʀᴄʜ ʜᴇʀᴇ", url=GRP_LNK)]]))

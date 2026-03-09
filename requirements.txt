@@ -46,8 +46,9 @@ yt-dlp
 ytthumb
 
 # Instaloader & Similarity Matching
-rapidfuzz
+fuzzywuzzy
 instaloader==4.9.5
+python-Levenshtein
 
 # AI Tools
 bard

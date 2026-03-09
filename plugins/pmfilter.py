@@ -87,37 +87,48 @@ async def give_filter(client, message):
         manual = await manual_filters(client, message)
         if manual == False:
             settings = await get_settings(message.chat.id)
-if settings['auto_ffilter']:
-    await auto_filter(client, message) 
-else:
-    search = message.text
+            try:
+                if settings['auto_ffilter']:
+                    await auto_filter(client, message)
+            except KeyError:
+                grpid = await active_connection(str(message.from_user.id))
+                await save_group_settings(grpid, 'auto_ffilter', True)
+                settings = await get_settings(message.chat.id)
+                if settings['auto_ffilter']:
+                    await auto_filter(client, message) 
+    else:
+        search = message.text
 
-    temp_files, temp_offset, total_results = await get_search_results(
+temp_files, temp_offset, total_results = await get_search_results(
+    chat_id=message.chat.id,
+    query=search.lower(),
+    offset=0,
+    filter=True
+)
+
+# Agar exact result nahi mila to fuzzy search
+if total_results == 0:
+
+    all_files, _, _ = await get_search_results(
         chat_id=message.chat.id,
         query=search.lower(),
         offset=0,
-        filter=True
+        filter=False
     )
 
-    # Agar exact result nahi mila
-    if total_results == 0:
-        from rapidfuzz import process, fuzz
+    names = [file.file_name for file in all_files]
 
-        all_files, _, _ = await get_search_results(
-            chat_id=message.chat.id,
-            query=search.lower(),
-            offset=0,
-            filter=False
-        )
+    matches = process.extract(
+        search,
+        names,
+        scorer=fuzz.token_sort_ratio,
+        limit=10
+    )
 
-        names = [file.file_name for file in all_files]
+    temp_files = [all_files[names.index(m[0])] for m in matches if m[1] > 60]
 
-        matches = process.extract(search, names, scorer=fuzz.token_sort_ratio, limit=10)
-
-        temp_files = [all_files[names.index(m[0])] for m in matches if m[1] > 60]
-
-        if not temp_files:
-            return
+    if not temp_files:
+        return
         else:
             return await message.reply_text(f"<b>Hᴇʏ {message.from_user.mention},\n\nʏᴏᴜʀ ʀᴇǫᴜᴇꜱᴛ ɪꜱ ᴀʟʀᴇᴀᴅʏ ᴀᴠᴀɪʟᴀʙʟᴇ ✅\n\n📂 ꜰɪʟᴇꜱ ꜰᴏᴜɴᴅ : {str(total_results)}\n ꜱᴇᴀʀᴄʜ :</b> <code>{search}</code>\n\n<b>‼️ ᴛʜɪs ɪs ᴀ <u>sᴜᴘᴘᴏʀᴛ ɢʀᴏᴜᴘ</u> sᴏ ᴛʜᴀᴛ ʏᴏᴜ ᴄᴀɴ'ᴛ ɢᴇᴛ ғɪʟᴇs ғʀᴏᴍ ʜᴇʀᴇ...\n\n📝 ꜱᴇᴀʀᴄʜ ʜᴇʀᴇ : 👇</b>",   
             reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("ᴊᴏɪɴ ᴀɴᴅ ꜱᴇᴀʀᴄʜ ʜᴇʀᴇ", url=GRP_LNK)]]))
@@ -2766,30 +2777,8 @@ async def auto_filter(client, msg, spoll=False):
             search = search.replace(":","")
             files, offset, total_results = await get_search_results(message.chat.id ,search, offset=0, filter=True)
             settings = await get_settings(message.chat.id)
-
             if not files:
-                movie_list = []
-
-                async for file in Media.find():
-                    movie_list.append(file.file_name)
-
-                suggestions = fuzzy_search(search, movie_list)
-
-                if suggestions:
-                    buttons = []
-
-                    for movie in suggestions:
-                        buttons.append(
-                            [InlineKeyboardButton(movie, switch_inline_query_current_chat=movie)]
-                        )
-
-                    await m.edit(
-                        "❓ Did you mean one of these?",
-                        reply_markup=InlineKeyboardMarkup(buttons)
-                    )
-                    return
-
-                # पुराना spell check नीचे रहेगा
+                #await m.delete()
                 if settings["spell_check"]:
                     ai_sts = await m.edit('ᴘʟᴇᴀꜱᴇ ᴡᴀɪᴛ, ʟᴜᴄʏ ɪꜱ ᴄʜᴇᴄᴋɪɴɢ ʏᴏᴜʀ ꜱᴘᴇʟʟɪɴɢ...')
                     is_misspelled = await ai_spell_check(chat_id = message.chat.id,wrong_name=search)
@@ -3000,7 +2989,7 @@ async def ai_spell_check(chat_id, wrong_name):
     if not movie_list:
         return
     for _ in range(5):
-        closest_match = process.extractOne(wrong_name, movie_list, scorer=fuzz.token_set_ratio)
+        closest_match = process.extractOne(wrong_name, movie_list)
         if not closest_match or closest_match[1] <= 80:
             return 
         movie = closest_match[0]
@@ -3471,19 +3460,3 @@ async def global_filters(client, message, text=False):
                 break
     else:
         return False
-
-def fuzzy_search(query, movie_list):
-    results = process.extract(
-        query,
-        movie_list,
-        scorer=fuzz.token_sort_ratio,
-        limit=5
-    )
-
-    matches = []
-
-    for movie, score, _ in results:
-        if score > 60:
-            matches.append(movie)
-
-    return matches

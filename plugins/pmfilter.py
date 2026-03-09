@@ -18,16 +18,14 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQ
 from pyrogram import Client, filters, enums
 from pyrogram.errors import FloodWait, UserIsBlocked, MessageNotModified, PeerIdInvalid
 from utils import *
-from rapidfuzz import process, fuzz
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
-from utils import FRESH, temp, get_settings
-
+from fuzzywuzzy import process
 from database.users_chats_db import db
 from database.config_db import mdb
 from database.ia_filterdb import Media, Media2, get_file_details, get_search_results, get_bad_files
-from database.filters_mdb import del_all, find_filter, get_filters
-from database.gfilters_mdb import find_gfilter, get_gfilters, del_allg
+from database.filters_mdb import (
+    del_all,
+    find_filter,
+    get_filters,
 )
 from database.gfilters_mdb import (
     find_gfilter,

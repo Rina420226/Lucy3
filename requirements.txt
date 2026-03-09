@@ -45,7 +45,8 @@ youtube_search
 yt-dlp
 ytthumb
 
-# Instaloader & Similarity Matchingrapidfuzz
+# Instaloader & Similarity Matching
+rapidfuzz
 instaloader==4.9.5
 
 # AI Tools

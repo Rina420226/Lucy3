@@ -94,12 +94,36 @@ async def give_filter(client, message):
                 grpid = await active_connection(str(message.from_user.id))
                 await save_group_settings(grpid, 'auto_ffilter', True)
                 settings = await get_settings(message.chat.id)
-                if settings['auto_ffilter']:
-                    await auto_filter(client, message) 
-    else:
-        search = message.text
-        temp_files, temp_offset, total_results = await get_search_results(chat_id=message.chat.id, query=search.lower(), offset=0, filter=True)
-        if total_results == 0:
+if settings['auto_ffilter']:
+    await auto_filter(client, message) 
+else:
+    search = message.text
+
+    temp_files, temp_offset, total_results = await get_search_results(
+        chat_id=message.chat.id,
+        query=search.lower(),
+        offset=0,
+        filter=True
+    )
+
+    # Agar exact result nahi mila
+    if total_results == 0:
+        from rapidfuzz import process, fuzz
+
+        all_files, _, _ = await get_search_results(
+            chat_id=message.chat.id,
+            query=search.lower(),
+            offset=0,
+            filter=False
+        )
+
+        names = [file.file_name for file in all_files]
+
+        matches = process.extract(search, names, scorer=fuzz.token_sort_ratio, limit=10)
+
+        temp_files = [all_files[names.index(m[0])] for m in matches if m[1] > 60]
+
+        if not temp_files:
             return
         else:
             return await message.reply_text(f"<b>Hᴇʏ {message.from_user.mention},\n\nʏᴏᴜʀ ʀᴇǫᴜᴇꜱᴛ ɪꜱ ᴀʟʀᴇᴀᴅʏ ᴀᴠᴀɪʟᴀʙʟᴇ ✅\n\n📂 ꜰɪʟᴇꜱ ꜰᴏᴜɴᴅ : {str(total_results)}\n ꜱᴇᴀʀᴄʜ :</b> <code>{search}</code>\n\n<b>‼️ ᴛʜɪs ɪs ᴀ <u>sᴜᴘᴘᴏʀᴛ ɢʀᴏᴜᴘ</u> sᴏ ᴛʜᴀᴛ ʏᴏᴜ ᴄᴀɴ'ᴛ ɢᴇᴛ ғɪʟᴇs ғʀᴏᴍ ʜᴇʀᴇ...\n\n📝 ꜱᴇᴀʀᴄʜ ʜᴇʀᴇ : 👇</b>",   

@@ -2751,20 +2751,57 @@ async def auto_filter(client, msg, spoll=False):
             files, offset, total_results = await get_search_results(message.chat.id ,search, offset=0, filter=True)
             settings = await get_settings(message.chat.id)
             if not files:
-                #await m.delete()
-                if settings["spell_check"]:
-                    ai_sts = await m.edit('ᴘʟᴇᴀꜱᴇ ᴡᴀɪᴛ, ʟᴜᴄʏ ɪꜱ ᴄʜᴇᴄᴋɪɴɢ ʏᴏᴜʀ ꜱᴘᴇʟʟɪɴɢ...')
-                    is_misspelled = await ai_spell_check(chat_id = message.chat.id,wrong_name=search)
-                    if is_misspelled:
-                        await ai_sts.edit(f'<b>✅ʟᴜᴄʏ sᴜɢɢᴇsᴛᴇᴅ <code> {is_misspelled}</code> \nsᴏ ɪᴍ sᴇᴀʀᴄʜɪɴɢ ғᴏᴛ <code>{is_misspelled}</code></b>')
-                        await asyncio.sleep(2)
-                        message.text = is_misspelled
-                        await ai_sts.delete()
-                        return await auto_filter(client, message)
-                    await ai_sts.delete()
-                    return await advantage_spell_chok(client, message)
-        else:
-            return
+                if not files:
+
+    all_movies = await get_bad_files()
+    suggestions = await fuzzy_search(search, all_movies)
+
+    if suggestions:
+
+        buttons = []
+
+        for movie in suggestions:
+            buttons.append(
+                [InlineKeyboardButton(
+                    f"🔎 {movie}",
+                    callback_data=f"search#{movie}"
+                )]
+            )
+
+        buttons.append(
+            [InlineKeyboardButton("❌ Cancel", callback_data="close_data")]
+        )
+
+        text = f'🔎 No exact results for "{search}"\n\n'
+        text += "Did you mean one of these?\n"
+        text += "Click a suggestion to search:"
+
+        await message.reply_text(
+            text,
+            reply_markup=InlineKeyboardMarkup(buttons)
+        )
+
+    return
+
+else:
+    message = msg.message.reply_to_message  # msg will be callback query
+    search, files, offset, total_results = spoll
+
+    m = await message.reply_text(f'**sᴇᴀʀᴄʜɪɴɢ...** `{search}`')
+
+    settings = await get_settings(message.chat.id)
+
+    await msg.message.delete()
+
+    pre = 'filep' if settings['file_secure'] else 'file'
+    key = f"{message.chat.id}-{message.id}"
+
+    FRESH[key] = search
+    temp.GETALL[key] = files
+    temp.SHORT[message.from_user.id] = message.chat.id
+
+    if settings["button"]:
+        pass
     else:
         message = msg.message.reply_to_message  # msg will be callback query
         search, files, offset, total_results = spoll

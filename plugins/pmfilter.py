@@ -2747,11 +2747,15 @@ async def auto_filter(client, msg, spoll=False):
             #search = re.sub(r"\b(pl(i|e)*?(s|z+|ease|se|ese|(e+)s(e)?)|((send|snd|giv(e)?|gib)(\sme)?)|movie(s)?|new|latest|bro|bruh|broh|helo|that|find|dubbed|link|venum|iruka|pannunga|pannungga|anuppunga|anupunga|anuppungga|anupungga|film|undo|kitti|kitty|tharu|kittumo|kittum|movie|any(one)|with\ssubtitle(s)?)", "", search, flags=re.IGNORECASE)
             #search = re.sub(r"\s+", " ", search).strip()
             search = search.replace("-", " ")
-            search = search.replace(":","")
-            files, offset, total_results = await get_search_results(message.chat.id ,search, offset=0, filter=True)
-            settings = await get_settings(message.chat.id)
-            if not files:
-                if not files:
+search = search.replace(":", "")
+
+files, offset, total_results = await get_search_results(
+    message.chat.id, search, offset=0, filter=True
+)
+
+settings = await get_settings(message.chat.id)
+
+if not files:
 
     all_movies = await get_bad_files()
     suggestions = await fuzzy_search(search, all_movies)
@@ -2784,10 +2788,11 @@ async def auto_filter(client, msg, spoll=False):
     return
 
 else:
-    message = msg.message.reply_to_message  # msg will be callback query
+    # spoll se data le rahe hain
     search, files, offset, total_results = spoll
 
-    m = await message.reply_text(f'**sᴇᴀʀᴄʜɪɴɢ...** `{search}`')
+    # message ko use karte hue searching message bhejna
+    m = await message.reply_text(f'**🔎 sᴇᴀʀᴄʜɪɴɢ...** `{search}`')
 
     settings = await get_settings(message.chat.id)
 

@@ -13,20 +13,24 @@ from Script import script
 import pyrogram
 from database.connections_mdb import active_connection, all_connections, delete_connection, if_active, make_active, \
     make_inactive
+from info import *
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton, CallbackQuery, InputMediaPhoto, WebAppInfo
 from pyrogram import Client, filters, enums
 from pyrogram.errors import FloodWait, UserIsBlocked, MessageNotModified, PeerIdInvalid
-
-from rapidfuzz import process, fuzz
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-
-from utils import FRESH, temp, get_settings
-
+from utils import *
+from fuzzywuzzy import process
 from database.users_chats_db import db
 from database.config_db import mdb
 from database.ia_filterdb import Media, Media2, get_file_details, get_search_results, get_bad_files
-from database.filters_mdb import del_all, find_filter, get_filters
-from database.gfilters_mdb import find_gfilter, get_gfilters, del_allg
+from database.filters_mdb import (
+    del_all,
+    find_filter,
+    get_filters,
+)
+from database.gfilters_mdb import (
+    find_gfilter,
+    get_gfilters,
+    del_allg
 )
 import logging
 from urllib.parse import quote_plus
@@ -2742,66 +2746,24 @@ async def auto_filter(client, msg, spoll=False):
             #search = re.sub(r"\b(pl(i|e)*?(s|z+|ease|se|ese|(e+)s(e)?)|((send|snd|giv(e)?|gib)(\sme)?)|movie(s)?|new|latest|bro|bruh|broh|helo|that|find|dubbed|link|venum|iruka|pannunga|pannungga|anuppunga|anupunga|anuppungga|anupungga|film|undo|kitti|kitty|tharu|kittumo|kittum|movie|any(one)|with\ssubtitle(s)?)", "", search, flags=re.IGNORECASE)
             #search = re.sub(r"\s+", " ", search).strip()
             search = search.replace("-", " ")
-search = search.replace(":", "")
-
-files, offset, total_results = await get_search_results(
-    message.chat.id, search, offset=0, filter=True
-)
-
-settings = await get_settings(message.chat.id)
-
-if not files:
-
-    all_movies = await get_bad_files()
-    suggestions = await fuzzy_search(search, all_movies)
-
-    if suggestions:
-
-        buttons = []
-
-        for movie in suggestions:
-            buttons.append(
-                [InlineKeyboardButton(
-                    f"🔎 {movie}",
-                    callback_data=f"search#{movie}"
-                )]
-            )
-
-        buttons.append(
-            [InlineKeyboardButton("❌ Cancel", callback_data="close_data")]
-        )
-
-        text = f'🔎 No exact results for "{search}"\n\n'
-        text += "Did you mean one of these?\n"
-        text += "Click a suggestion to search:"
-
-        await message.reply_text(
-            text,
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-
-    return
-
-else:
-    # spoll se data le rahe hain
-    search, files, offset, total_results = spoll
-
-    # message ko use karte hue searching message bhejna
-    m = await message.reply_text(f'**🔎 sᴇᴀʀᴄʜɪɴɢ...** `{search}`')
-
-    settings = await get_settings(message.chat.id)
-
-    await msg.message.delete()
-
-    pre = 'filep' if settings['file_secure'] else 'file'
-    key = f"{message.chat.id}-{message.id}"
-
-    FRESH[key] = search
-    temp.GETALL[key] = files
-    temp.SHORT[message.from_user.id] = message.chat.id
-
-    if settings["button"]:
-        pass
+            search = search.replace(":","")
+            files, offset, total_results = await get_search_results(message.chat.id ,search, offset=0, filter=True)
+            settings = await get_settings(message.chat.id)
+            if not files:
+                #await m.delete()
+                if settings["spell_check"]:
+                    ai_sts = await m.edit('ᴘʟᴇᴀꜱᴇ ᴡᴀɪᴛ, ʟᴜᴄʏ ɪꜱ ᴄʜᴇᴄᴋɪɴɢ ʏᴏᴜʀ ꜱᴘᴇʟʟɪɴɢ...')
+                    is_misspelled = await ai_spell_check(chat_id = message.chat.id,wrong_name=search)
+                    if is_misspelled:
+                        await ai_sts.edit(f'<b>✅ʟᴜᴄʏ sᴜɢɢᴇsᴛᴇᴅ <code> {is_misspelled}</code> \nsᴏ ɪᴍ sᴇᴀʀᴄʜɪɴɢ ғᴏᴛ <code>{is_misspelled}</code></b>')
+                        await asyncio.sleep(2)
+                        message.text = is_misspelled
+                        await ai_sts.delete()
+                        return await auto_filter(client, message)
+                    await ai_sts.delete()
+                    return await advantage_spell_chok(client, message)
+        else:
+            return
     else:
         message = msg.message.reply_to_message  # msg will be callback query
         search, files, offset, total_results = spoll
@@ -3470,20 +3432,3 @@ async def global_filters(client, message, text=False):
                 break
     else:
         return False
-
-async def fuzzy_search(query, movie_list):
-
-    results = process.extract(
-        query,
-        movie_list,
-        scorer=fuzz.token_sort_ratio,
-        limit=5
-    )
-
-    matches = []
-
-    for match, score, _ in results:
-        if score >= 60:
-            matches.append(match)
-
-    return matches

@@ -2750,30 +2750,30 @@ async def auto_filter(client, msg, spoll=False):
             files, offset, total_results = await get_search_results(message.chat.id ,search, offset=0, filter=True)
             settings = await get_settings(message.chat.id)
 
-if not files:
-    movie_list = []
+            if not files:
+                movie_list = []
 
-    async for file in Media.find():
-        movie_list.append(file.file_name)
+                async for file in Media.find():
+                    movie_list.append(file.file_name)
 
-    suggestions = fuzzy_search(search, movie_list)
+                suggestions = fuzzy_search(search, movie_list)
 
-    if suggestions:
-        buttons = []
+                if suggestions:
+                    buttons = []
 
-        for movie in suggestions:
-            buttons.append(
-                [InlineKeyboardButton(movie, switch_inline_query_current_chat=movie)]
-            )
+                    for movie in suggestions:
+                        buttons.append(
+                            [InlineKeyboardButton(movie, switch_inline_query_current_chat=movie)]
+                        )
 
-        await m.edit(
-            "❓ Did you mean one of these?",
-            reply_markup=InlineKeyboardMarkup(buttons)
-        )
-        return
+                    await m.edit(
+                        "❓ Did you mean one of these?",
+                        reply_markup=InlineKeyboardMarkup(buttons)
+                    )
+                    return
 
-    # पुराना spell check नीचे रहेगा
-    if settings["spell_check"]:
+                # पुराना spell check नीचे रहेगा
+                if settings["spell_check"]:
                     ai_sts = await m.edit('ᴘʟᴇᴀꜱᴇ ᴡᴀɪᴛ, ʟᴜᴄʏ ɪꜱ ᴄʜᴇᴄᴋɪɴɢ ʏᴏᴜʀ ꜱᴘᴇʟʟɪɴɢ...')
                     is_misspelled = await ai_spell_check(chat_id = message.chat.id,wrong_name=search)
                     if is_misspelled:

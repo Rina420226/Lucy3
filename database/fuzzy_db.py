@@ -1,32 +1,48 @@
+import logging
 from rapidfuzz import process, fuzz
 from .ia_filterdb import Media, Media2
-import logging
 
 logger = logging.getLogger(__name__)
 
 async def get_all_file_names(limit: int = 10000):
     """
     डेटाबेस से सभी फाइल नाम लाकर लौटाता है
-    Fuzzy Search Suggestions के लिए उपयोगी
     """
     try:
-        # Media collection से file_names लो
-        cursor1 = Media.find({}, {"file_name": 1, "_id": 0})
-        docs1 = await cursor1.to_list(length=limit)
+        # Count check
+        count1 = await Media.count_documents({})
+        count2 = await Media2.count_documents({})
+        logger.info(f"📊 Total documents: Media={count1}, Media2={count2}")
         
-        # Media2 collection से file_names लो
-        cursor2 = Media2.find({}, {"file_name": 1, "_id": 0})
-        docs2 = await cursor2.to_list(length=limit)
+        if count1 == 0 and count2 == 0:
+            logger.warning("⚠️ No files in database!")
+            return []
         
-        # दोनों collections से file_names निकालो
-        file_names1 = [doc["file_name"] for doc in docs1 if doc.get("file_name")]
-        file_names2 = [doc["file_name"] for doc in docs2 if doc.get("file_name")]
+        # Media collection
+        file_names = []
         
-        # दोनों lists को जोड़ो
-        all_file_names = file_names1 + file_names2
+        if count1 > 0:
+            cursor1 = Media.find({}, {"file_name": 1})
+            docs1 = await cursor1.to_list(length=limit)
+            for doc in docs1:
+                if doc.get("file_name"):
+                    file_names.append(doc["file_name"])
+            logger.info(f"📁 Got {len(docs1)} from Media")
         
-        logger.info(f"✅ {len(all_file_names)} file names loaded for fuzzy search")
-        return all_file_names
+        # Media2 collection
+        if count2 > 0:
+            cursor2 = Media2.find({}, {"file_name": 1})
+            docs2 = await cursor2.to_list(length=limit)
+            for doc in docs2:
+                if doc.get("file_name"):
+                    file_names.append(doc["file_name"])
+            logger.info(f"📁 Got {len(docs2)} from Media2")
+        
+        # Remove duplicates
+        unique_names = list(set(file_names))
+        
+        logger.info(f"✅ Total unique file names: {len(unique_names)}")
+        return unique_names
         
     except Exception as e:
         logger.error(f"❌ Error in get_all_file_names: {e}")
@@ -34,16 +50,22 @@ async def get_all_file_names(limit: int = 10000):
 
 async def get_fuzzy_suggestions(search_query: str, limit: int = 5, score_cutoff: int = 50):
     """
-    सीधे Fuzzy Suggestions लौटाता है
+    Fuzzy Suggestions with movie years
     """
     try:
-        # सारे file names लाओ
+        if not search_query or len(search_query) < 2:
+            return []
+        
+        logger.info(f"🔍 Getting fuzzy suggestions for: '{search_query}'")
+        
+        # Get all file names
         all_names = await get_all_file_names()
         
         if not all_names:
+            logger.warning("⚠️ No file names to search")
             return []
         
-        # RapidFuzz से suggestions निकालो
+        # RapidFuzz suggestions
         suggestions = process.extract(
             search_query,
             all_names,
@@ -52,16 +74,25 @@ async def get_fuzzy_suggestions(search_query: str, limit: int = 5, score_cutoff:
             score_cutoff=score_cutoff
         )
         
-        # Results को format में बदलो
+        # Format results with years
         result = []
+        import re
+        
         for match_string, score, index in suggestions:
+            # Extract year if present (like 2009, 2022 etc)
+            year_match = re.search(r'\b(19|20)\d{2}\b', match_string)
+            year = f" ({year_match.group()})" if year_match else ""
+            
+            # Clean up name
+            clean_name = match_string.replace('_', ' ').replace('.', ' ')
+            
             result.append({
                 'name': match_string,
-                'score': score,
-                'display': f"{match_string} ({score}% match)"
+                'display': f"{clean_name}{year}",
+                'score': score
             })
+            logger.info(f"  → {clean_name}{year} ({score}%)")
         
-        logger.info(f"🔍 Found {len(result)} fuzzy suggestions for '{search_query}'")
         return result
         
     except Exception as e:

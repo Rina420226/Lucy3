@@ -12,9 +12,9 @@ from database.connections_mdb import active_connection
 from utils import get_file_id, parser, split_quotes
 from info import ADMINS
 
-# 🔥 Fuzzy Search ke liye import
+# 🔥 Fuzzy Search ke liye import - AB YAHAN SE LENA HAI
 from rapidfuzz import process, fuzz
-from database.ia_filterdb import get_all_file_names
+from database.fuzzy_db import get_all_file_names, get_fuzzy_suggestions
 
 @Client.on_message(filters.command(['filter', 'add']) & filters.incoming)
 async def addfilter(client, message):
@@ -291,7 +291,7 @@ async def auto_filter_handler(client, message):
         return
     
     # Import get_search_results from ia_filterdb
-    from database.ia_filterdb import get_search_results, get_fuzzy_suggestions
+    from database.ia_filterdb import get_search_results
     
     # Pehle normal search try karo
     files, _, total_results = await get_search_results(message.chat.id, query)
@@ -307,8 +307,6 @@ async def send_fuzzy_suggestions(client, message, query):
     """
     Fuzzy suggestions send karne ka function
     """
-    from database.ia_filterdb import get_fuzzy_suggestions
-    
     # Loading animation dikhao
     wait_msg = await message.reply_text("🔍 खोज रहा हूँ... कृपया प्रतीक्षा करें")
     

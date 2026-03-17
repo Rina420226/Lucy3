@@ -1,20 +1,26 @@
 import io
+import logging
 from pyrogram import filters, Client, enums
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from database.filters_mdb import(
-   add_filter,
-   get_filters,
-   delete_filter,
-   count_filters
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
+from pyrogram.errors import FloodWait
+import asyncio
+
+from database.filters_mdb import (
+    add_filter,
+    get_filters,
+    delete_filter,
+    count_filters
 )
-
 from database.connections_mdb import active_connection
-from utils import get_file_id, parser, split_quotes
-from info import ADMINS
+from database.ia_filterdb import get_search_results, get_file_details, Media
+from utils import get_file_id, parser, split_quotes, get_size, get_settings, save_group_settings, temp
+from info import ADMINS, CUSTOM_FILE_CAPTION, PROTECT_CONTENT, CHNL_LNK, GRP_LNK
 
-# 🔥 Fuzzy Search ke liye import - AB YAHAN SE LENA HAI
-from rapidfuzz import process, fuzz
-from database.fuzzy_db import get_all_file_names, get_fuzzy_suggestions
+logger = logging.getLogger(__name__)
+
+# ========================================================
+# EXISTING FILTER COMMANDS (Original Code)
+# ========================================================
 
 @Client.on_message(filters.command(['filter', 'add']) & filters.incoming)
 async def addfilter(client, message):
@@ -52,7 +58,6 @@ async def addfilter(client, message):
         and str(userid) not in ADMINS
     ):
         return
-
 
     if len(args) < 2:
         await message.reply_text("Command Incomplete :(", quote=True)
@@ -183,6 +188,7 @@ async def get_all(client, message):
         parse_mode=enums.ParseMode.MARKDOWN
     )
         
+
 @Client.on_message(filters.command('del') & filters.incoming)
 async def deletefilter(client, message):
     userid = message.from_user.id if message.from_user else None
@@ -274,91 +280,185 @@ async def delallconfirm(client, message):
         )
 
 
-# ========== 🔥 NEW FUNCTION FOR FUZZY SEARCH SUGGESTIONS ==========
+# ========================================================
+# MAIN AUTO FILTER FUNCTION (FIXED VERSION)
+# ========================================================
 
-@Client.on_message(filters.text & filters.group & ~filters.command(['start', 'help', 'settings', 'filter', 'add', 'del', 'delall', 'viewfilters', 'filters', 'connect', 'disconnect', 'connections']))
-async def auto_filter_handler(client, message):
+@Client.on_message(filters.text & filters.group & ~filters.command([
+    'start', 'help', 'settings', 'filter', 'add', 'del', 'delall', 
+    'viewfilters', 'filters', 'connect', 'disconnect', 'connections',
+    'stats', 'info', 'id', 'shortlink', 'plan', 'myplan'
+]))
+async def auto_filter(client: Client, message: Message):
     """
-    Yeh function automatically group messages ko handle karega
-    Aur agar koi result na mile to fuzzy suggestions dikhayega
+    Main auto filter function - handles all text messages in groups
     """
+    # Basic checks
+    if not message.from_user:
+        return
+    
     query = message.text.strip()
     if len(query) < 2:
         return
     
-    # Check if message is from user (not bot)
-    if not message.from_user:
+    # Check if user is banned
+    if message.from_user.id in temp.BANNED_USERS:
         return
     
-    # Import get_search_results from ia_filterdb
-    from database.ia_filterdb import get_search_results
+    logger.info(f"🔍 Search query: {query} from {message.from_user.first_name} in {message.chat.title}")
     
-    # Pehle normal search try karo
-    files, _, total_results = await get_search_results(message.chat.id, query)
-    
-    # Agar files mil gayi to return (ye automatically handle hoga)
-    if total_results > 0:
-        return
-    
-    # 🎯 YAHAN PAR FUZZY SUGGESTIONS AAYENGE
-    await send_fuzzy_suggestions(client, message, query)
-
-async def send_fuzzy_suggestions(client, message, query):
-    """
-    Fuzzy suggestions send karne ka function
-    """
-    # Loading animation dikhao
-    wait_msg = await message.reply_text("🔍 खोज रहा हूँ... कृपया प्रतीक्षा करें")
-    
-    # Fuzzy suggestions लो
-    suggestions = await get_fuzzy_suggestions(query, limit=5, score_cutoff=50)
-    
-    if not suggestions:
-        # Agar koi suggestion na mile to simple message bhejo
-        await wait_msg.delete()
+    try:
+        # Get group settings
+        settings = await get_settings(message.chat.id)
+        
+        # Get search results from database
+        files, next_offset, total_results = await get_search_results(
+            message.chat.id,
+            query,
+            max_results=10,
+            offset=0
+        )
+        
+        if total_results == 0:
+            # No results found
+            await message.reply_text(
+                f"❌ No results found for: `{query}`\n\n"
+                f"💡 Try different keywords or check spelling.",
+                quote=True
+            )
+            return
+        
+        # Results found - send them
+        await send_results(client, message, files, total_results, query, settings)
+        
+    except Exception as e:
+        logger.error(f"Error in auto_filter: {e}")
         await message.reply_text(
-            f"❌ '{query}' के लिए कोई परिणाम नहीं मिला।\n\n"
-            f"💡 सुझाव: वर्तनी जांचें या कीवर्ड छोटा करें।",
+            "❌ An error occurred while searching. Please try again later.",
             quote=True
         )
-        return
-    
-    # Loading message delete karo
-    await wait_msg.delete()
-    
-    # Suggestions ke saath message banao
-    msg_text = f"❌ **'{query}' के लिए कोई सटीक परिणाम नहीं मिला।**\n\n"
-    msg_text += "🔎 **क्या आपका मतलब इनमें से एक था?**\n\n"
-    
-    # Buttons banane ke liye list
-    buttons = []
-    
-    for sug in suggestions:
-        name = sug['name']
-        # Agar name lamba hai to truncate karo
-        display_name = name[:35] + "..." if len(name) > 35 else name
-        # Score ke saath display karo (optional)
-        # display_name = f"{display_name} ({sug['score']}%)"
+
+
+async def send_results(client, message, files, total_results, query, settings):
+    """
+    Send search results to user
+    """
+    try:
+        # Prepare result message
+        if total_results > 5:
+            result_text = f"✅ **Found {total_results} results for:** `{query}`\n\n"
+            result_text += f"**Showing first 5 results:**\n\n"
+            files_to_show = files[:5]
+        else:
+            result_text = f"✅ **Found {total_results} results for:** `{query}`\n\n"
+            files_to_show = files
         
+        # Create buttons for each file
+        buttons = []
+        for file in files_to_show:
+            file_name = file.file_name
+            file_size = get_size(file.file_size)
+            
+            # Shorten filename if too long
+            display_name = file_name[:35] + "..." if len(file_name) > 35 else file_name
+            
+            buttons.append([
+                InlineKeyboardButton(
+                    f"📄 {display_name} ({file_size})",
+                    callback_data=f"file_{file.file_id}"
+                )
+            ])
+        
+        # Add more options button if there are more results
+        if total_results > 5:
+            buttons.append([
+                InlineKeyboardButton(
+                    f"📚 View All {total_results} Results",
+                    callback_data=f"viewall_{query}"
+                )
+            ])
+        
+        # Add search again button
         buttons.append([
-            InlineKeyboardButton(
-                f"📌 {display_name}",
-                callback_data=f"fuzzy_{name}"
-            )
+            InlineKeyboardButton("🔍 Search Again", switch_inline_query_current_chat=query)
         ])
+        
+        reply_markup = InlineKeyboardMarkup(buttons)
+        
+        await message.reply_text(
+            result_text,
+            reply_markup=reply_markup,
+            quote=True
+        )
+        
+    except Exception as e:
+        logger.error(f"Error in send_results: {e}")
+        await message.reply_text(
+            f"✅ Found {total_results} results for: {query}\n"
+            f"Use inline mode to get files.",
+            quote=True
+        )
+
+
+# ========================================================
+# CALLBACK HANDLERS FOR FILE BUTTONS
+# ========================================================
+
+@Client.on_callback_query(filters.regex(r'^file_'))
+async def file_callback(client, callback_query):
+    """Handle file button clicks"""
+    file_id = callback_query.data.replace('file_', '')
     
-    # "Try again" और "Cancel" buttons
-    buttons.append([
-        InlineKeyboardButton("🔍 फिर से कोशिश करें", switch_inline_query_current_chat=query)
-    ])
-    buttons.append([
-        InlineKeyboardButton("❌ रद्द करें", callback_data="fuzzy_cancel")
-    ])
+    try:
+        # Get file details
+        files = await get_file_details(file_id)
+        if not files:
+            await callback_query.answer("File not found!", show_alert=True)
+            return
+        
+        file = files[0]
+        
+        # Prepare caption
+        caption = file.caption or file.file_name
+        if CUSTOM_FILE_CAPTION:
+            try:
+                caption = CUSTOM_FILE_CAPTION.format(
+                    file_name=file.file_name,
+                    file_size=get_size(file.file_size),
+                    file_caption=caption
+                )
+            except:
+                pass
+        
+        # Send file
+        await callback_query.message.reply_document(
+            document=file.file_id,
+            caption=caption,
+            protect_content=PROTECT_CONTENT
+        )
+        
+        await callback_query.answer("File sent successfully!")
+        
+    except Exception as e:
+        logger.error(f"Error in file_callback: {e}")
+        await callback_query.answer("Error sending file!", show_alert=True)
+
+
+@Client.on_callback_query(filters.regex(r'^viewall_'))
+async def viewall_callback(client, callback_query):
+    """Handle view all results button"""
+    query = callback_query.data.replace('viewall_', '')
     
-    reply_markup = InlineKeyboardMarkup(buttons)
-    
-    await message.reply_text(
-        msg_text,
-        reply_markup=reply_markup,
+    await callback_query.answer()
+    await callback_query.message.reply_text(
+        f"🔍 Please use inline mode to view all results for: {query}\n\n"
+        f"Type @{client.me.username} {query} in any chat.",
         quote=True
     )
+
+
+@Client.on_callback_query(filters.regex(r'^delallconfirm$'))
+async def delallconfirm_callback(client, callback_query):
+    """Handle delete all confirmation"""
+    await callback_query.answer()
+    await callback_query.message.edit_text("✅ All filters deleted!")

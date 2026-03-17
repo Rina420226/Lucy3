@@ -7,9 +7,8 @@ from utils import is_req_subscribed, get_size, temp
 from info import CACHE_TIME, AUTH_USERS, AUTH_CHANNEL, CUSTOM_FILE_CAPTION
 from database.connections_mdb import active_connection
 
-# 🔥 Fuzzy Search ke liye imports
-from database.ia_filterdb import get_fuzzy_suggestions
-from rapidfuzz import process, fuzz
+# 🔥 Fuzzy Search ke liye imports - AB YAHAN SE LENA HAI
+from database.fuzzy_db import get_fuzzy_suggestions
 
 logger = logging.getLogger(__name__)
 cache_time = 0 if AUTH_USERS or AUTH_CHANNEL else CACHE_TIME

@@ -23,9 +23,7 @@ from shortzy import Shortzy
 import http.client
 import json
 
-# 🔥 Fuzzy Search ke liye ye 2 imports add kiye
-from rapidfuzz import process, fuzz
-from database.ia_filterdb import get_all_file_names, get_fuzzy_suggestions
+# 🔥 NOTE: Fuzzy search imports yahan se hata diye gayein hain
 
 logger = logging.getLogger(__name__)
 logger.setLevel(logging.INFO)

@@ -12,6 +12,9 @@ from database.connections_mdb import active_connection
 from utils import get_file_id, parser, split_quotes
 from info import ADMINS
 
+# 🔥 Fuzzy Search ke liye import
+from rapidfuzz import process, fuzz
+from database.ia_filterdb import get_all_file_names
 
 @Client.on_message(filters.command(['filter', 'add']) & filters.incoming)
 async def addfilter(client, message):
@@ -269,3 +272,95 @@ async def delallconfirm(client, message):
             ]),
             quote=True
         )
+
+
+# ========== 🔥 NEW FUNCTION FOR FUZZY SEARCH SUGGESTIONS ==========
+
+@Client.on_message(filters.text & filters.group & ~filters.command(['start', 'help', 'settings', 'filter', 'add', 'del', 'delall', 'viewfilters', 'filters', 'connect', 'disconnect', 'connections']))
+async def auto_filter_handler(client, message):
+    """
+    Yeh function automatically group messages ko handle karega
+    Aur agar koi result na mile to fuzzy suggestions dikhayega
+    """
+    query = message.text.strip()
+    if len(query) < 2:
+        return
+    
+    # Check if message is from user (not bot)
+    if not message.from_user:
+        return
+    
+    # Import get_search_results from ia_filterdb
+    from database.ia_filterdb import get_search_results, get_fuzzy_suggestions
+    
+    # Pehle normal search try karo
+    files, _, total_results = await get_search_results(message.chat.id, query)
+    
+    # Agar files mil gayi to return (ye automatically handle hoga)
+    if total_results > 0:
+        return
+    
+    # 🎯 YAHAN PAR FUZZY SUGGESTIONS AAYENGE
+    await send_fuzzy_suggestions(client, message, query)
+
+async def send_fuzzy_suggestions(client, message, query):
+    """
+    Fuzzy suggestions send karne ka function
+    """
+    from database.ia_filterdb import get_fuzzy_suggestions
+    
+    # Loading animation dikhao
+    wait_msg = await message.reply_text("🔍 खोज रहा हूँ... कृपया प्रतीक्षा करें")
+    
+    # Fuzzy suggestions लो
+    suggestions = await get_fuzzy_suggestions(query, limit=5, score_cutoff=50)
+    
+    if not suggestions:
+        # Agar koi suggestion na mile to simple message bhejo
+        await wait_msg.delete()
+        await message.reply_text(
+            f"❌ '{query}' के लिए कोई परिणाम नहीं मिला।\n\n"
+            f"💡 सुझाव: वर्तनी जांचें या कीवर्ड छोटा करें।",
+            quote=True
+        )
+        return
+    
+    # Loading message delete karo
+    await wait_msg.delete()
+    
+    # Suggestions ke saath message banao
+    msg_text = f"❌ **'{query}' के लिए कोई सटीक परिणाम नहीं मिला।**\n\n"
+    msg_text += "🔎 **क्या आपका मतलब इनमें से एक था?**\n\n"
+    
+    # Buttons banane ke liye list
+    buttons = []
+    
+    for sug in suggestions:
+        name = sug['name']
+        # Agar name lamba hai to truncate karo
+        display_name = name[:35] + "..." if len(name) > 35 else name
+        # Score ke saath display karo (optional)
+        # display_name = f"{display_name} ({sug['score']}%)"
+        
+        buttons.append([
+            InlineKeyboardButton(
+                f"📌 {display_name}",
+                callback_data=f"fuzzy_{name}"
+            )
+        ])
+    
+    # "Try again" और "Cancel" buttons
+    buttons.append([
+        InlineKeyboardButton("🔍 फिर से कोशिश करें", switch_inline_query_current_chat=query)
+    ])
+    buttons.append([
+        InlineKeyboardButton("❌ रद्द करें", callback_data="fuzzy_cancel")
+    ])
+    
+    reply_markup = InlineKeyboardMarkup(buttons)
+    
+    await message.reply_text(
+        msg_text,
+        reply_markup=reply_markup,
+        quote=True
+    )

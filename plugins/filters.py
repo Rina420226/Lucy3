@@ -1,28 +1,17 @@
 import io
-import logging
-import re
 from pyrogram import filters, Client, enums
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup, Message
-from pyrogram.errors import FloodWait
-import asyncio
-
-from database.filters_mdb import (
-    add_filter,
-    get_filters,
-    delete_filter,
-    count_filters
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
+from database.filters_mdb import(
+   add_filter,
+   get_filters,
+   delete_filter,
+   count_filters
 )
+
 from database.connections_mdb import active_connection
-from database.ia_filterdb import get_search_results, get_file_details
-from database.fuzzy_db import get_fuzzy_suggestions
-from utils import get_file_id, parser, split_quotes, get_size, get_settings, save_group_settings, temp
-from info import ADMINS, CUSTOM_FILE_CAPTION, PROTECT_CONTENT
+from utils import get_file_id, parser, split_quotes
+from info import ADMINS
 
-logger = logging.getLogger(__name__)
-
-# ========================================================
-# EXISTING FILTER COMMANDS (Original Code)
-# ========================================================
 
 @Client.on_message(filters.command(['filter', 'add']) & filters.incoming)
 async def addfilter(client, message):
@@ -60,6 +49,7 @@ async def addfilter(client, message):
         and str(userid) not in ADMINS
     ):
         return
+
 
     if len(args) < 2:
         await message.reply_text("Command Incomplete :(", quote=True)
@@ -190,7 +180,6 @@ async def get_all(client, message):
         parse_mode=enums.ParseMode.MARKDOWN
     )
         
-
 @Client.on_message(filters.command('del') & filters.incoming)
 async def deletefilter(client, message):
     userid = message.from_user.id if message.from_user else None
@@ -280,260 +269,3 @@ async def delallconfirm(client, message):
             ]),
             quote=True
         )
-
-
-# ========================================================
-# MAIN AUTO FILTER WITH FUZZY SUGGESTIONS
-# ========================================================
-
-@Client.on_message(filters.text & filters.group & ~filters.command([
-    'start', 'help', 'settings', 'filter', 'add', 'del', 'delall', 
-    'viewfilters', 'filters', 'connect', 'disconnect', 'connections',
-    'stats', 'info', 'id', 'shortlink', 'plan', 'myplan'
-]))
-async def auto_filter(client: Client, message: Message):
-    """
-    Main auto filter function with fuzzy suggestions
-    """
-    # Basic checks
-    if not message.from_user:
-        return
-    
-    query = message.text.strip()
-    if len(query) < 2:
-        return
-    
-    # Check if user is banned
-    if message.from_user.id in temp.BANNED_USERS:
-        return
-    
-    logger.info(f"🔍 Search query: {query} from {message.from_user.first_name}")
-    
-    try:
-        # First try normal search
-        files, next_offset, total_results = await get_search_results(
-            message.chat.id,
-            query,
-            max_results=10,
-            offset=0
-        )
-        
-        if total_results > 0:
-            # Results found - send them
-            await send_results(client, message, files, total_results, query)
-            return
-        
-        # No results found - try fuzzy suggestions
-        await send_fuzzy_suggestions(client, message, query)
-        
-    except Exception as e:
-        logger.error(f"Error in auto_filter: {e}")
-        await message.reply_text(
-            "❌ An error occurred while searching. Please try again later.",
-            quote=True
-        )
-
-
-async def send_fuzzy_suggestions(client, message, query):
-    """
-    Send fuzzy search suggestions when no results found
-    """
-    # Show typing indicator
-    await client.send_chat_action(message.chat.id, "typing")
-    
-    # Get fuzzy suggestions
-    suggestions = await get_fuzzy_suggestions(query, limit=5, score_cutoff=50)
-    
-    if not suggestions:
-        # No suggestions found
-        await message.reply_text(
-            f"❌ **No results found for:** `{query}`\n\n"
-            f"💡 Try different keywords or check spelling.",
-            quote=True
-        )
-        return
-    
-    # Create suggestion message
-    text = f"❌ **No exact results for:** `{query}`\n\n"
-    text += "🔎 **Did you mean one of these?**\n"
-    text += "Click a suggestion to search:\n\n"
-    
-    # Create buttons for each suggestion
-    buttons = []
-    for sug in suggestions:
-        display_name = sug['display'][:40] + "..." if len(sug['display']) > 40 else sug['display']
-        buttons.append([
-            InlineKeyboardButton(
-                f"📌 {display_name}",
-                callback_data=f"fuzzy_{sug['name']}"
-            )
-        ])
-    
-    # Add cancel button
-    buttons.append([
-        InlineKeyboardButton("❌ Cancel", callback_data="fuzzy_cancel")
-    ])
-    
-    reply_markup = InlineKeyboardMarkup(buttons)
-    
-    await message.reply_text(
-        text,
-        reply_markup=reply_markup,
-        quote=True
-    )
-
-
-async def send_results(client, message, files, total_results, query):
-    """
-    Send search results to user
-    """
-    try:
-        # Prepare result message
-        if total_results > 5:
-            result_text = f"✅ **Found {total_results} results for:** `{query}`\n\n"
-            result_text += f"**Showing first 5 results:**\n\n"
-            files_to_show = files[:5]
-        else:
-            result_text = f"✅ **Found {total_results} results for:** `{query}`\n\n"
-            files_to_show = files
-        
-        # Create buttons for each file
-        buttons = []
-        for file in files_to_show:
-            file_name = file.file_name
-            file_size = get_size(file.file_size)
-            
-            # Shorten filename if too long
-            display_name = file_name[:35] + "..." if len(file_name) > 35 else file_name
-            
-            buttons.append([
-                InlineKeyboardButton(
-                    f"📄 {display_name} ({file_size})",
-                    callback_data=f"file_{file.file_id}"
-                )
-            ])
-        
-        # Add more options button if there are more results
-        if total_results > 5:
-            buttons.append([
-                InlineKeyboardButton(
-                    f"📚 View All {total_results} Results",
-                    callback_data=f"viewall_{query}"
-                )
-            ])
-        
-        # Add search again button
-        buttons.append([
-            InlineKeyboardButton("🔍 Search Again", switch_inline_query_current_chat=query)
-        ])
-        
-        reply_markup = InlineKeyboardMarkup(buttons)
-        
-        await message.reply_text(
-            result_text,
-            reply_markup=reply_markup,
-            quote=True
-        )
-        
-    except Exception as e:
-        logger.error(f"Error in send_results: {e}")
-        await message.reply_text(
-            f"✅ Found {total_results} results for: {query}\n"
-            f"Use inline mode to get files.",
-            quote=True
-        )
-
-
-# ========================================================
-# CALLBACK HANDLERS
-# ========================================================
-
-@Client.on_callback_query(filters.regex(r'^file_'))
-async def file_callback(client, callback_query):
-    """Handle file button clicks"""
-    file_id = callback_query.data.replace('file_', '')
-    
-    try:
-        # Get file details
-        files = await get_file_details(file_id)
-        if not files:
-            await callback_query.answer("File not found!", show_alert=True)
-            return
-        
-        file = files[0]
-        
-        # Prepare caption
-        caption = file.caption or file.file_name
-        if CUSTOM_FILE_CAPTION:
-            try:
-                caption = CUSTOM_FILE_CAPTION.format(
-                    file_name=file.file_name,
-                    file_size=get_size(file.file_size),
-                    file_caption=caption
-                )
-            except:
-                pass
-        
-        # Send file
-        await callback_query.message.reply_document(
-            document=file.file_id,
-            caption=caption,
-            protect_content=PROTECT_CONTENT
-        )
-        
-        await callback_query.answer("File sent successfully!")
-        
-    except Exception as e:
-        logger.error(f"Error in file_callback: {e}")
-        await callback_query.answer("Error sending file!", show_alert=True)
-
-
-@Client.on_callback_query(filters.regex(r'^fuzzy_'))
-async def fuzzy_callback(client, callback_query):
-    """Handle fuzzy suggestion clicks"""
-    query = callback_query.data.replace('fuzzy_', '')
-    
-    await callback_query.answer(f"Searching for: {query[:30]}...")
-    
-    # Search with the suggested name
-    files, _, total = await get_search_results(
-        callback_query.message.chat.id,
-        query,
-        max_results=10,
-        offset=0
-    )
-    
-    if total > 0:
-        await send_results(client, callback_query.message, files, total, query)
-        await callback_query.message.delete()
-    else:
-        await callback_query.message.edit_text(
-            f"❌ No results found for: {query}"
-        )
-
-
-@Client.on_callback_query(filters.regex(r'^fuzzy_cancel$'))
-async def fuzzy_cancel_callback(client, callback_query):
-    """Handle cancel button"""
-    await callback_query.answer("Cancelled")
-    await callback_query.message.delete()
-
-
-@Client.on_callback_query(filters.regex(r'^viewall_'))
-async def viewall_callback(client, callback_query):
-    """Handle view all results button"""
-    query = callback_query.data.replace('viewall_', '')
-    
-    await callback_query.answer()
-    await callback_query.message.reply_text(
-        f"🔍 Please use inline mode to view all results for: {query}\n\n"
-        f"Type @{client.me.username} {query} in any chat.",
-        quote=True
-    )
-
-
-@Client.on_callback_query(filters.regex(r'^delallconfirm$'))
-async def delallconfirm_callback(client, callback_query):
-    """Handle delete all confirmation"""
-    await callback_query.answer()
-    await callback_query.message.edit_text("✅ All filters deleted!")

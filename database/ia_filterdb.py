@@ -312,5 +312,8 @@ async def get_qualities(text, qualities: list):
     quality = ", ".join(quality)
     return quality[:-2] if quality.endswith(", ") else quality
 
-# ⚠️ NOTE: Fuzzy search functions yahan se hata diye gayein hain
-# Ab wo database/fuzzy_db.py mein hain
+
+
+
+
+

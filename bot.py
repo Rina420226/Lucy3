@@ -22,10 +22,6 @@ from LucyBot.Bot import Codeflix
 from LucyBot.util.keepalive import ping_server
 from LucyBot.Bot.clients import initialize_clients
 
-# 🔥 Fuzzy Search ke liye imports
-from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
-from database.ia_filterdb import get_search_results, get_file_details
-
 logging.config.fileConfig('logging.conf')
 logging.getLogger().setLevel(logging.INFO)
 logging.getLogger("pyrogram").setLevel(logging.ERROR)
@@ -98,68 +94,6 @@ async def Lucy_start():
     await web.TCPSite(app, bind_address, PORT).start()
     await idle()
     
-
-# ========== 🔥 NEW CALLBACK HANDLER FOR FUZZY SUGGESTIONS ==========
-
-@Codeflix.on_callback_query()
-async def callback_handlers(client, callback_query):
-    """Handle all callback queries including fuzzy suggestions"""
-    
-    data = callback_query.data
-    user_id = callback_query.from_user.id
-    
-    # ✅ Fuzzy suggestion click handler
-    if data.startswith("fuzzy_"):
-        # "fuzzy_" ke baad ka part actual file name hai
-        file_name = data.replace("fuzzy_", "", 1)
-        
-        await callback_query.answer(f"🔍 Searching for: {file_name[:30]}...")
-        
-        # User ko batayein ki search ho rahi hai
-        await callback_query.edit_message_text(
-            f"🔍 **Searching for:** `{file_name}`\n\nPlease wait..."
-        )
-        
-        # Ab is file name से database में search karein
-        # Note: exact file name se search kar rahe hain
-        chat_id = callback_query.message.chat.id
-        files, _, total = await get_search_results(chat_id, file_name)
-        
-        if total > 0:
-            # Files mil gayi - pehli file details lein
-            file = files[0]
-            file_id = file.file_id
-            file_caption = file.caption or file.file_name
-            
-            # File send karein
-            await client.send_document(
-                chat_id=callback_query.from_user.id,
-                document=file_id,
-                caption=f"**{file_name}**\n\n✅ Found in database!"
-            )
-            
-            # Callback message update karein
-            await callback_query.edit_message_text(
-                f"✅ **Found {total} result(s) for:** `{file_name}`\n\n"
-                f"📤 File has been sent to you in PM!"
-            )
-        else:
-            # Agar kisi wajah se file na mile (should not happen, but just in case)
-            await callback_query.edit_message_text(
-                f"❌ **Sorry, couldn't find the file:** `{file_name}`\n\n"
-                f"Please try searching with different keywords."
-            )
-    
-    # ✅ Cancel handler
-    elif data == "fuzzy_cancel":
-        await callback_query.answer("Cancelled")
-        await callback_query.message.delete()
-    
-    # ✅ Agar koi aur callback hai to usko original handlers ke liye pass-through
-    # Note: Aapke original callback handlers (like delallconfirm etc) ko ye override nahi karega
-    # Kyunki wo specific patterns handle karte hain, aur ye sirf fuzzy_ prefix handle kar raha hai
-
-
 if __name__ == '__main__':
     loop = asyncio.get_event_loop()
     try:

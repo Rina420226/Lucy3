@@ -50,9 +50,6 @@ fuzzywuzzy
 instaloader==4.9.5
 python-Levenshtein
 
-# 🔥 Fuzzy Search ke liye RapidFuzz add kiya
-rapidfuzz>=3.6.0
-
 # AI Tools
 bard
 beautifulsoup4

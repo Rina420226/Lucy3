@@ -62,12 +62,8 @@ qrcode
 textblob
 langdetect 
 
-# Git-based Packages
-# 👇 YEH LINE HATANA HAI (Cinemagoer)
-# git+https://github.com/Joelkb/cinemagoer
-
-# 👇 YEH LINE ADD KARNA HAI (IMDBKit)
-git+https://github.com/NBBotz/IMDBKit
+# IMDb Library - Stable Version
+imdbpy  # 👈 YEH LINE ADD KI (Simple, stable, kaam karega!)
 
 # Other Tools
 apscheduler

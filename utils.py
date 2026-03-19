@@ -1,8 +1,8 @@
 import logging
 from pyrogram.errors import InputUserDeactivated, UserNotParticipant, FloodWait, UserIsBlocked, PeerIdInvalid
 from info import *
-# 👇 YE LINE CHANGE KI (Cinemagoer hata diya)
-# from imdb import Cinemagoer 
+# 👇 SIMPLE IMDb LIBRARY - YE KAM KAREGA!
+from imdb import Cinemagoer
 import asyncio
 from pyrogram.types import Message, InlineKeyboardButton, InlineKeyboardMarkup
 from pyrogram.errors import FloodWait, UserIsBlocked, MessageNotModified, PeerIdInvalid
@@ -31,15 +31,9 @@ BTN_URL_REGEX = re.compile(
     r"(\[([^\[]+?)\]\((buttonurl|buttonalert):(?:/{0,2})(.+?)(:same)?\))"
 )
 
-# 👇 YAHAN PE CHANGE KIYA - IMDBKit add kiya
-try:
-    from imdbkit import IMDBKit
-    imdb = IMDBKit()
-    logger.info("✅ IMDBKit imported successfully")
-except ImportError:
-    logger.error("❌ IMDBKit not installed! IMDb features will be disabled")
-    logger.error("Please install: pip install git+https://github.com/NBBotz/IMDBKit")
-    imdb = None
+# 👇 SIMPLE IMDb LIBRARY - INITIALIZE
+imdb = Cinemagoer()
+logger.info("✅ IMDb Cinemagoer initialized successfully")
 
 TOKENS = {}
 VERIFIED = {}
@@ -113,11 +107,6 @@ async def get_status(bot_id):
 
     
 async def get_poster(query, bulk=False, id=False, file=None):
-    # 👇 YEH CHECK ADD KIYA - agar imdb None hai to return
-    if imdb is None:
-        logger.warning("IMDBKit not available, skipping poster")
-        return None
-        
     if not id:
         query = (query.strip()).lower()
         title = query
@@ -196,7 +185,7 @@ async def get_poster(query, bulk=False, id=False, file=None):
     }
 
 
-# 👇 BAARI KI SARI FUNCTIONS WAISI HI RAHENGI - KOI CHANGE NAHI
+# 👇 BAQI SARI FUNCTIONS WAISI HI RAHENGI - KOI CHANGE NAHI
 async def broadcast_messages(user_id, message):
     try:
         m = await message.copy(chat_id=user_id)

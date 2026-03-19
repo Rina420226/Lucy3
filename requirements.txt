@@ -62,8 +62,8 @@ qrcode
 textblob
 langdetect 
 
-# IMDb Library - Stable Version
-imdbpy  # 👈 YEH LINE ADD KI (Simple, stable, kaam karega!)
+# Git-based Packages
+git+https://github.com/Joelkb/cinemagoer
 
 # Other Tools
 apscheduler

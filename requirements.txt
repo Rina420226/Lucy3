@@ -64,8 +64,6 @@ langdetect
 
 # Git-based Packages
 git+https://github.com/Joelkb/cinemagoer
-# 👇 YEH LINE ADD KARO (IMDBKit)
-git+https://github.com/NBBotz/IMDBKit
 
 # Other Tools
 apscheduler

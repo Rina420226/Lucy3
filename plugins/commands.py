@@ -22,9 +22,6 @@ from info import *
 from utils import *
 from database.connections_mdb import active_connection
 
-# 👇 RENAME FEATURE KE LIYE IMPORT ADD KIYA
-from .rename import rename_private, rename_callback, rename_group
-
 # Set up logging
 logging.basicConfig(level=logging.ERROR)
 logger = logging.getLogger(__name__)

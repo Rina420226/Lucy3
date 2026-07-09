@@ -90,7 +90,7 @@ HOW_TO_VERIFY = environ.get('HOW_TO_VERIFY', 'https://t.me/How_To_Download_OTx')
 # ============================
 # Link Shortener Configuration
 # ============================
-IS_SHORTLINK = bool(environ.get('IS_SHORTLINK', True))
+IS_SHORTLINK = bool(environ.get('IS_SHORTLINK', False))
 SHORTLINK_URL = environ.get('SHORTLINK_URL', 'shrinkme.io')
 SHORTLINK_API = environ.get('SHORTLINK_API', '79bfe9f22cb7a7177ad37f940cbc203ec8631610')
 TUTORIAL = environ.get('TUTORIAL', 'https://t.me/how_to_open_nowshort')  # Tutorial video link for opening shortlink website
